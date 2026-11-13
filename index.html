@@ -2,7 +2,8 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Zoom travado (maximum-scale=1, user-scalable=no). Para liberar o zoom de novo, use: content="width=device-width,initial-scale=1" -->
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Meu Painel Acadêmico</title>
 <meta name="description" content="Prazos, provas, seminários e calendário acadêmico em um só lugar.">
 <meta name="theme-color" content="#4f46e5">
@@ -24,6 +25,7 @@ try{var t=localStorage.getItem('painel-academico-v1-tema')||(matchMedia('(prefer
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
+html,body{touch-action:pan-x pan-y}  /* permite rolar, bloqueia pinça e toque duplo para zoom */
 body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding-bottom:96px}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -38,8 +40,8 @@ h3{font-size:1rem;margin:6px 0 2px;line-height:1.3}
 .tools{display:flex;gap:8px}
 
 /* navegação */
-nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(5,1fr);background:var(--card);border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
-nav.tabs a{display:flex;flex-direction:column;align-items:center;gap:2px;text-decoration:none;color:var(--muted);font-size:.68rem;padding:6px 2px;border-radius:12px;position:relative}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(6,1fr);background:var(--card);border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+nav.tabs a{display:flex;flex-direction:column;align-items:center;gap:2px;text-decoration:none;color:var(--muted);font-size:.62rem;padding:6px 0;border-radius:12px;position:relative;min-width:0}
 nav.tabs a .ic{font-size:1.25rem;line-height:1}
 nav.tabs a[aria-current=page]{color:var(--brand);background:color-mix(in srgb,var(--brand) 12%,transparent);font-weight:600}
 nav.tabs .long{display:none}
@@ -159,6 +161,23 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 .empty .actions{justify-content:center}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:100px;background:#1b1f2a;color:#fff;padding:10px 16px;border-radius:12px;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:50;max-width:90%}
 #toast.on{opacity:1}
+/* filtros por tipo */
+.filtros{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px}
+.fchip{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:6px 13px;font-size:.86rem}
+.fchip:hover{border-color:var(--c,var(--brand))}
+.fchip[aria-pressed=true]{background:color-mix(in srgb,var(--c,var(--brand)) 18%,var(--card));border-color:var(--c,var(--brand));font-weight:700}
+/* disciplinas */
+.discs{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));margin-top:12px}
+.disc{text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);display:grid;gap:8px;width:100%;align-content:start}
+.disc:hover{border-color:var(--brand)}
+.disc h3{margin:0;font-size:1.05rem;overflow-wrap:anywhere}
+.minis{display:flex;gap:6px;flex-wrap:wrap}
+.mini{font-size:.76rem;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 13%,transparent);padding:2px 9px;border-radius:99px}
+/* dias seguidos */
+.conv-card.seq{border-color:color-mix(in srgb,var(--f-talvez) 50%,var(--line))}
+.pill.alt{color:var(--f-talvez);background:color-mix(in srgb,var(--f-talvez) 16%,transparent)}
+.dl{min-width:8em;text-transform:capitalize}
+.its{display:grid;gap:4px}
 #btnNuvem .lbl{display:none}
 @media(min-width:760px){#btnNuvem .lbl{display:inline;margin-left:6px;font-size:.85rem}}
 #btnNuvem[data-st=erro]{border-color:var(--danger)}
@@ -204,7 +223,8 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
     <input name="titulo" required maxlength="120" placeholder="Ex.: Prova de Cálculo II">
   </label>
   <label class="f">Disciplina / projeto (opcional)
-    <input name="disciplina" maxlength="80" placeholder="Ex.: Cálculo II">
+    <input name="disciplina" maxlength="80" list="dl-disc" placeholder="Ex.: Cálculo II">
+    <datalist id="dl-disc"></datalist>
   </label>
   <div class="row">
     <label class="f">Data<input type="date" name="data" required></label>
@@ -269,6 +289,7 @@ const TABS=[
   ['prazos','📅','Prazos','Prazos'],
   ['prioridades','🔥','Prioridades','Prioridades'],
   ['calendario','🗓️','Calendário','Calendário'],
+  ['disciplinas','📚','Disciplinas','Disciplinas'],
   ['provas','📝','Provas','Provas e seminários'],
   ['convergencias','⚠️','Conflitos','Dias de convergência']
 ];
@@ -315,7 +336,7 @@ function normalizar(o){
 let store=load();            // todas as atividades (inclui as excluídas, para sincronizar a exclusão)
 let items=store.filter(x=>!x.excluido);   // só as visíveis
 const hoje0=new Date();
-const ui={cal:{y:hoje0.getFullYear(),m:hoje0.getMonth()},sel:iso(hoje0),verFeitas:false,filtro:'todos',passadas:false};
+const ui={cal:{y:hoje0.getFullYear(),m:hoje0.getMonth()},sel:iso(hoje0),verFeitas:false,filtro:'todos',passadas:false,fpri:new Set(),disc:null};
 
 /* ===== regras de negócio ===== */
 function faixa(it,now){
@@ -397,16 +418,22 @@ function viewPrazos(now,conv){
   ${resto.length?`<div class="grid">${resto.map(i=>card(i,now,conv)).join('')}</div>`:'<p class="vazio">Nada pendente. Aproveite! 😌</p>'}`;
 }
 
+const FILTROS=[['prova','📝 Provas'],['seminario','🎤 Seminários'],['trabalho','📄 Trabalhos'],['ic','🔬 IC'],['outro','📌 Outros']];
+function filtrosPri(){
+  return `<div class="filtros" role="group" aria-label="Filtrar por tipo de atividade">
+    <button class="fchip" data-a="fpri" data-v="todos" aria-pressed="${!ui.fpri.size}">Todos</button>
+    ${FILTROS.map(([v,t])=>`<button class="fchip" style="--c:var(${TIPOS[v].cor})" data-a="fpri" data-v="${v}" aria-pressed="${ui.fpri.has(v)}">${t}</button>`).join('')}</div>`;
+}
 function viewPrioridades(now,conv){
   if(!items.length)return vazioNovo();
-  const pend=items.filter(i=>i.tipo!=='reposicao'&&!i.feito).sort(cmp);
+  const pend=items.filter(i=>i.tipo!=='reposicao'&&!i.feito&&(!ui.fpri.size||ui.fpri.has(i.tipo))).sort(cmp);
   const A=CONFIG.FAIXA_AGORA_DIAS,B=CONFIG.FAIXA_TALVEZ_DIAS;
   const defs=[
     ['agora','🔥','Fazer agora!',`até ${A} dias (inclui atrasadas)`],
     ['talvez','😎','Pode procrastinar mais',`de ${A} a ${B} dias`],
     ['futuro','🔭','Problema do futuro',`${B} dias ou mais`]
   ];
-  return `<h2 style="margin-top:16px">Prioridades por urgência</h2><p class="hint">A divisão é automática: muda sozinha conforme os dias passam.</p>
+  return `<h2 style="margin-top:16px">Prioridades por urgência</h2><p class="hint">A divisão é automática: muda sozinha conforme os dias passam. Toque nos filtros para ver só alguns tipos (dá para combinar).</p>${filtrosPri()}
   <div class="cols" style="margin-top:12px">${defs.map(([k,ic,t,sub])=>{
     const l=pend.filter(i=>faixa(i,now)===k);
     return `<section class="col" style="--f:var(--f-${k})"><header><h2>${ic} ${t} <span aria-label="${l.length} itens">(${l.length})</span></h2><p>${sub}</p></header>
@@ -450,6 +477,91 @@ function viewCalendario(now,conv){
   </section>`;
 }
 
+/* ----- Disciplinas ----- */
+const chaveDisc=s=>String(s||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+function nomesDisc(){
+  const m=new Map();
+  for(const it of items){const k=chaveDisc(it.disciplina);if(k&&!m.has(k))m.set(k,it.disciplina.trim())}
+  return [...m.values()].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+}
+function disciplinasMapa(){
+  const m=new Map();
+  for(const it of items){
+    const k=chaveDisc(it.disciplina);
+    if(!k&&it.tipo==='reposicao')continue;
+    if(!m.has(k))m.set(k,{k,nome:k?it.disciplina.trim():'Sem disciplina',itens:[]});
+    m.get(k).itens.push(it);
+  }
+  return m;
+}
+function viewDisciplinas(now,conv){
+  if(!items.length)return vazioNovo();
+  const m=disciplinasMapa();
+  if(ui.disc!==null&&m.has(ui.disc))return detalheDisc(m.get(ui.disc),now,conv);
+  ui.disc=null;
+  const lista=[...m.values()].map(d=>{
+    const pend=d.itens.filter(i=>i.tipo!=='reposicao'&&!i.feito).sort(cmp);
+    return {...d,pend,feitas:d.itens.filter(i=>i.tipo!=='reposicao'&&i.feito).length,prox:pend[0]};
+  }).sort((a,b)=>(a.prox?0:1)-(b.prox?0:1)||(a.prox&&b.prox?cmp(a.prox,b.prox):0)||a.nome.localeCompare(b.nome,'pt-BR'));
+  return `<h2 style="margin-top:16px">Disciplinas e projetos</h2>
+  <p class="hint">Toque em uma disciplina para ver todas as demandas dela. Ordenadas pela próxima entrega. O nome vem do campo "Disciplina / projeto" de cada atividade.</p>
+  <div class="discs">${lista.map(d=>{
+    const minis=['prova','seminario','trabalho','ic','outro'].map(t=>{const n=d.pend.filter(i=>i.tipo===t).length;return n?`<span class="mini" style="--c:var(${TIPOS[t].cor})">${TIPOS[t].ic} ${n}</span>`:''}).join('');
+    return `<button class="disc" data-a="disc" data-k="${esc(d.k)}"><h3>📚 ${esc(d.nome)}</h3>
+      <p class="meta">${plural(d.pend.length,'pendente','pendentes')} · ${plural(d.feitas,'concluída','concluídas')}</p>
+      ${minis?`<div class="minis">${minis}</div>`:''}
+      <span class="count ${d.prox&&fromIso(d.prox.data,d.prox.hora)<now?'late':''}">${d.prox?`Próxima: ${TIPOS[d.prox.tipo].ic} ${esc(d.prox.titulo)} — ${diasAte(d.prox.data)}`:'Nada pendente 🎉'}</span></button>`}).join('')}</div>`;
+}
+function detalheDisc(d,now,conv){
+  const pend=d.itens.filter(i=>i.tipo!=='reposicao'&&!i.feito).sort(cmp);
+  const feitas=d.itens.filter(i=>i.tipo!=='reposicao'&&i.feito).sort(cmp);
+  const reps=d.itens.filter(i=>i.tipo==='reposicao').sort(cmp);
+  const atras=pend.filter(i=>fromIso(i.data,i.hora)<now).length;
+  const prox=pend.find(i=>ehPS(i)&&fromIso(i.data,i.hora)>=now);
+  const sec=(t,l,vz)=>l.length?`<h2>${t} (${l.length})</h2><div class="grid">${l.map(i=>card(i,now,conv)).join('')}</div>`:(vz?`<h2>${t}</h2><p class="vazio">${vz}</p>`:'');
+  return `<p style="margin:14px 0 0"><button class="link" data-a="disc-voltar">← Todas as disciplinas</button></p>
+  <h2 style="margin-top:8px">📚 ${esc(d.nome)}</h2>
+  <div class="stats">
+    <div class="stat"><b>${pend.length}</b><span>pendente${pend.length===1?'':'s'}</span></div>
+    <div class="stat ${atras?'bad':''}"><b>${atras}</b><span>atrasada${atras===1?'':'s'}</span></div>
+    <div class="stat"><b>${feitas.length}</b><span>concluída${feitas.length===1?'':'s'}</span></div>
+    <div class="stat wide">${prox?`<span>Próxima prova ou seminário</span><b>${TIPOS[prox.tipo].ic} ${esc(prox.titulo)} — ${diasAte(prox.data)}</b>`:'<span>Nenhuma prova ou seminário à vista nesta disciplina</span>'}</div>
+  </div>
+  <div class="actions" style="justify-content:flex-start;margin:12px 0 0"><button class="btn primary" data-a="add" data-disc="${esc(d.k?d.nome:'')}">＋ Adicionar nesta disciplina</button></div>
+  ${sec('Pendentes',pend,'Nada pendente aqui. 😌')}${sec('Dias de reposição',reps)}${sec('Concluídas',feitas)}`;
+}
+
+/* ----- Dias seguidos (provas e/ou seminários em dias consecutivos) ----- */
+function sequencias(){
+  const porDia=new Map();
+  for(const it of items){if(!ehPS(it))continue;if(!porDia.has(it.data))porDia.set(it.data,[]);porDia.get(it.data).push(it)}
+  const dias=[...porDia.keys()].sort();
+  const seguido=(a,b)=>Math.round((fromIso(b,'00:00')-fromIso(a,'00:00'))/DAY)===1;
+  const grupos=[];let cur=[];
+  for(const d of dias){
+    if(cur.length&&seguido(cur[cur.length-1],d))cur.push(d);
+    else{if(cur.length>1)grupos.push(cur);cur=[d]}
+  }
+  if(cur.length>1)grupos.push(cur);
+  return grupos.map(ds=>{
+    const arr=ds.flatMap(d=>porDia.get(d));
+    const p=arr.filter(x=>x.tipo==='prova').length,s=arr.length-p;
+    const partes=[];
+    if(p)partes.push(plural(p,'prova','provas'));
+    if(s)partes.push(plural(s,'seminário','seminários'));
+    return {dias:ds,mapa:porDia,label:partes.join(' + ')};
+  });
+}
+function seqCard(s,conv){
+  const ini=s.dias[0],fim=s.dias[s.dias.length-1];
+  return `<article class="conv-card seq"><header>
+    <div><h3>${fmtDia(ini)} → ${fmtDia(fim)}</h3><span class="hint">${plural(s.dias.length,'dia seguido','dias seguidos')} · começa ${diasAte(ini)}</span></div>
+    <span class="pill alt">🔗 ${s.label}</span></header>
+    <ul>${s.dias.map(d=>`<li><b class="dl">${fmtDia(d)}</b><span class="its">${s.mapa.get(d).sort(cmp).map(i=>`<span><span class="tag" style="--c:var(${TIPOS[i.tipo].cor})">${TIPOS[i.tipo].ic} ${TIPOS[i.tipo].nome}</span> <b>${esc(i.titulo)}</b>${i.disciplina?` <span class="hint">· ${esc(i.disciplina)}</span>`:''}${i.hora?` <span class="hint">às ${i.hora}</span>`:''}</span>`).join('')}</span></li>`).join('')}</ul>
+    ${s.dias.some(d=>conv.has(d))?'<p class="hint" style="margin:8px 0 0">⚠ Esta sequência inclui dia(s) de convergência.</p>':''}
+    <p style="margin:10px 0 0"><button class="link" data-a="ver-cal" data-d="${ini}">Ver no calendário →</button></p></article>`;
+}
+
 function viewProvas(now,conv){
   if(!items.length)return vazioNovo();
   const hojeK=iso(now);
@@ -474,6 +586,7 @@ function viewProvas(now,conv){
 function viewConv(now,conv){
   if(!items.length)return vazioNovo();
   const hojeK=iso(now);
+  const seqs=sequencias().filter(s=>s.dias[s.dias.length-1]>=hojeK);
   const lista=[...conv.entries()].filter(([k])=>k>=hojeK).sort((a,b)=>a[0].localeCompare(b[0]));
   return `<h2 style="margin-top:16px">Dias de convergência</h2>
   <p class="hint">Dias com mais de uma prova, mais de um seminário, ou prova e seminário juntos. Bom para planejar os estudos com antecedência.</p>
@@ -482,11 +595,14 @@ function viewConv(now,conv){
     <p class="hint" style="margin-top:6px">${c.kind}</p>
     <ul>${c.arr.map(i=>`<li><span class="tag" style="--c:var(${TIPOS[i.tipo].cor})">${TIPOS[i.tipo].ic} ${TIPOS[i.tipo].nome}</span><b>${esc(i.titulo)}</b>${i.disciplina?`<span class="hint">${esc(i.disciplina)}</span>`:''}${i.hora?`<span class="hint">às ${i.hora}</span>`:''}</li>`).join('')}</ul>
     <p style="margin:10px 0 0"><button class="link" data-a="ver-cal" data-d="${k}">Ver no calendário →</button></p></article>`).join('')
-    :'<div class="empty"><div class="big">🎉</div><h2>Nenhum dia de convergência pela frente</h2><p class="hint">Nenhum dia tem provas ou seminários concorrendo entre si.</p></div>'}</div>`;
+    :'<p class="vazio">Nenhum dia de convergência pela frente 🎉</p>'}</div>
+  <h2 style="margin-top:28px">Dias seguidos com provas e seminários</h2>
+  <p class="hint">Dois ou mais dias consecutivos com pelo menos uma prova ou seminário. Mesmo sem conflito no mesmo dia, uma sequência exige preparo adiantado.</p>
+  <div style="margin-top:14px">${seqs.length?seqs.map(s=>seqCard(s,conv)).join(''):'<p class="vazio">Nenhuma sequência de dias seguidos pela frente 🎉</p>'}</div>`;
 }
 
 /* ===== renderização ===== */
-const VIEWS={prazos:viewPrazos,prioridades:viewPrioridades,calendario:viewCalendario,provas:viewProvas,convergencias:viewConv};
+const VIEWS={prazos:viewPrazos,prioridades:viewPrioridades,calendario:viewCalendario,disciplinas:viewDisciplinas,provas:viewProvas,convergencias:viewConv};
 function tabAtual(){const h=location.hash.slice(1);return VIEWS[h]?h:'prazos'}
 function render(){
   const now=new Date(),conv=convergencias(),tab=tabAtual();
@@ -494,7 +610,8 @@ function render(){
   const pend=items.filter(i=>i.tipo!=='reposicao'&&!i.feito);
   const nAgora=pend.filter(i=>faixa(i,now)==='agora').length;
   const nConv=[...conv.keys()].filter(k=>k>=iso(now)).length;
-  const badges={prioridades:nAgora,convergencias:nConv};
+  const nSeq=sequencias().filter(s=>s.dias[s.dias.length-1]>=iso(now)).length;
+  const badges={prioridades:nAgora,convergencias:nConv+nSeq};
   $('#nav').innerHTML=TABS.map(([id,ic,curto,longo])=>`<a href="#${id}" ${id===tab?'aria-current="page"':''} title="${longo}"><span class="ic" aria-hidden="true">${ic}</span><span class="short">${curto}</span><span class="long">${longo}</span>${badges[id]?`<span class="badge" aria-label="${badges[id]}">${badges[id]}</span>`:''}</a>`).join('');
   $('#view').innerHTML=VIEWS[tab](now,conv);
 }
@@ -502,13 +619,14 @@ function render(){
 /* ===== interações ===== */
 const dlg=$('#dlg'),form=$('#form'),bdlg=$('#bdlg'),file=$('#file');
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('on');clearTimeout(toast.id);toast.id=setTimeout(()=>t.classList.remove('on'),2600)}
-function openForm(id,dataPre){
+function openForm(id,dataPre,discPre){
   const it=id?items.find(x=>x.id===id):null;
   form.reset();form.dataset.id=it?it.id:'';
   $('#dlgTitle').textContent=it?'Editar atividade':'Nova atividade';
   form.tipo.value=it?it.tipo:(tabAtual()==='provas'?'prova':'trabalho');
   form.titulo.value=it?it.titulo:'';
-  form.disciplina.value=it?it.disciplina:'';
+  form.disciplina.value=it?it.disciplina:(discPre||'');
+  $('#dl-disc').innerHTML=nomesDisc().map(n=>`<option value="${esc(n)}">`).join('');
   form.data.value=it?it.data:(dataPre||iso(new Date()));
   form.hora.value=it?it.hora:'';
   form.notas.value=it?it.notas:'';
@@ -537,7 +655,7 @@ document.addEventListener('click',e=>{
   if(!t)return;
   const a=t.dataset.a,id=t.closest('[data-id]')?.dataset.id;
   switch(a){
-    case 'add':openForm(null,t.dataset.d);break;
+    case 'add':openForm(null,t.dataset.d,t.dataset.disc);break;
     case 'edit':openForm(id);break;
     case 'del':{const it=store.find(x=>x.id===id);if(it&&confirm(`Excluir "${it.titulo}"?`)){it.excluido=true;it.ts=Date.now();commit();render();toast('Excluída.')}break}
     case 'toggle':{const it=store.find(x=>x.id===id);if(it){it.feito=!it.feito;it.ts=Date.now();commit();render();toast(it.feito?'Concluída! 🎉':'Reaberta.')}break}
@@ -546,6 +664,9 @@ document.addEventListener('click',e=>{
     case 'prev':case 'next':{ui.cal.m+=a==='next'?1:-1;if(ui.cal.m>11){ui.cal.m=0;ui.cal.y++}if(ui.cal.m<0){ui.cal.m=11;ui.cal.y--}render();break}
     case 'hoje':{const n=new Date();ui.cal={y:n.getFullYear(),m:n.getMonth()};ui.sel=iso(n);render();break}
     case 'filtro':ui.filtro=t.dataset.v;render();break;
+    case 'fpri':{const v=t.dataset.v;if(v==='todos')ui.fpri.clear();else if(ui.fpri.has(v))ui.fpri.delete(v);else ui.fpri.add(v);render();break}
+    case 'disc':ui.disc=t.dataset.k;render();scrollTo(0,0);break;
+    case 'disc-voltar':ui.disc=null;render();scrollTo(0,0);break;
     case 'ver-cal':{const [y,m]=t.dataset.d.split('-').map(Number);ui.cal={y,m:m-1};ui.sel=t.dataset.d;go('calendario');break}
     case 'tema':{const n=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=n;try{localStorage.setItem(KEY+'-tema',n)}catch{}break}
     case 'backup':bdlg.showModal();break;
@@ -597,6 +718,8 @@ form.addEventListener('submit',e=>{
 const ndlg=$('#ndlg');
 for(const d of [dlg,bdlg,ndlg])d.addEventListener('click',e=>{if(e.target===d)d.close()});
 addEventListener('hashchange',render);
+// iOS ignora user-scalable=no: bloqueia também os gestos de pinça
+for(const g of ['gesturestart','gesturechange','gestureend'])document.addEventListener(g,e=>e.preventDefault());
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){render();agendarSync()}});
 addEventListener('online',()=>agendarSync());
 addEventListener('offline',()=>{if(SB.user)setSt('offline')});
